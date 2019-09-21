@@ -1,0 +1,5 @@
+[plugininstall]
+description=tLister add tabs support to Lister. Place it on first place in wlx plugin list.
+type=wlx
+file=tlister.wlx
+defaultdir=tlister
