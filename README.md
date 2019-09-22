@@ -1,0 +1,1 @@
+tLister add tabs support to Lister. Place it on first place in wlx plugins list.

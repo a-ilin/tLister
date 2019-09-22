@@ -1,6 +1,7 @@
 /* 
 	tLister add tabs support to Lister.
 	Copyright (C) 2011 Egor Vlaznev 
+    Copyright (C) 2019 Aleksei Ilin
 	
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -15,15 +16,17 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <windows.h>
+
 #include "tlister.h"
+#include "HookManager.h"
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-HINSTANCE  hInst;
+HINSTANCE  hInst = NULL;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL APIENTRY DllMain(HINSTANCE hinst, unsigned long reason, void* lpReserved) {
     switch(reason) {
     case DLL_PROCESS_ATTACH:
-        hInst=hinst;
+        hInst = hinst;
         break;
     case DLL_PROCESS_DETACH:
         break;
@@ -31,16 +34,18 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, unsigned long reason, void* lpReserved) {
     return TRUE;
 
 }
-extern "C" __declspec(dllexport)void __stdcall ListGetDetectString(char* DetectString,int maxlen){
-    strcpy_s(DetectString,maxlen,"MULTIMEDIA");
+extern "C" __declspec(dllexport)void __stdcall ListGetDetectString(char* DetectString, int maxlen)
+{
+    strcpy_s(DetectString, maxlen, "MULTIMEDIA");
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-extern "C" __declspec(dllexport) HWND __stdcall ListLoadW(HWND ParentWin,char* FileToLoad,int ShowFlags) {
-	AddTab(ParentWin);
+extern "C" __declspec(dllexport) HWND __stdcall ListLoadW(HWND ParentWin, char* FileToLoad, int ShowFlags) 
+{
+    HookManager::instance().AddTab(ParentWin);
 	return NULL;
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-extern "C" __declspec(dllexport) HWND __stdcall ListLoad(HWND ParentWin,char* FileToLoad,int ShowFlags) {
-	return ListLoadW(ParentWin,NULL,ShowFlags);
+extern "C" __declspec(dllexport) HWND __stdcall ListLoad(HWND ParentWin, char* FileToLoad, int ShowFlags) 
+{
+	return ListLoadW(ParentWin, NULL, ShowFlags);
 }
-

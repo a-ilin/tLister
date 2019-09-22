@@ -1,6 +1,7 @@
 /* 
 	tLister add tabs support to Lister.
 	Copyright (C) 2011 Egor Vlaznev 
+    Copyright (C) 2019 Aleksei Ilin
 	
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -16,9 +17,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-void CreateTabControl(HWND ParentWin);
-LRESULT CALLBACK TabWindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-void AddTab(HWND window);
-void DelTab(HWND window);
-void CloseTabWindow();
+#include <Windows.h>
+#include <tchar.h>
+
+extern HINSTANCE hInst;
 
