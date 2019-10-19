@@ -27,8 +27,8 @@ static HookManager* g_hookManager = NULL;
 
 HookManager::HookManager()
 {
-    m_hKb = SetWindowsHookEx(WH_GETMESSAGE, &HookManager::KeySpyProc, hInst, GetCurrentThreadId());
-    m_hSpy = SetWindowsHookEx(WH_CALLWNDPROCRET, &HookManager::SpyProc, hInst, GetCurrentThreadId());
+    m_hkGetMessage = SetWindowsHookEx(WH_GETMESSAGE, &HookManager::HookGetMessageProc, hInst, GetCurrentThreadId());
+    m_hkCallWndProcRet = SetWindowsHookEx(WH_CALLWNDPROCRET, &HookManager::HookCallWndProcRetProc, hInst, GetCurrentThreadId());
 }
 
 HookManager& HookManager::instance()
@@ -41,9 +41,11 @@ HookManager& HookManager::instance()
 
 HookManager::~HookManager()
 {
+    g_hookManager = nullptr;
+
     DeleteObject(m_hTabFont);
-    UnhookWindowsHookEx(m_hKb);
-    UnhookWindowsHookEx(m_hSpy);
+    UnhookWindowsHookEx(m_hkGetMessage);
+    UnhookWindowsHookEx(m_hkCallWndProcRet);
 }
 
 TabWindow* HookManager::CreateNewWindow(HWND hWndParent)
@@ -81,6 +83,7 @@ void HookManager::AddNewChild(HWND hWndChild)
         for (auto it = m_windows.crbegin(); it != m_windows.crend(); ++it) {
             if ((*it)->ChildCount() < static_cast<size_t>(m_config.MaxWinCount)) {
                 nextParent = *it;
+                break;
             }
         }
     }
@@ -111,25 +114,49 @@ TabWindow* HookManager::FindTabWindow(HWND hWnd) const
     return it == m_windows.cend() ? nullptr : *it;
 }
 
-LRESULT HookManager::SpyProc(int nCode, WPARAM wParam, LPARAM lParam)
+void HookManager::OnWindowDestroyed(HWND hWnd)
 {
-    const auto& windows = HookManager::instance().windows();
-    for (auto it = windows.cbegin(); it != windows.cend(); ++it) {
-        (*it)->SpyProc(nCode, wParam, lParam);
-    }
-    return CallNextHookEx(HookManager::instance().m_hSpy, nCode, wParam, lParam);
-}
-
-LRESULT HookManager::KeySpyProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
-    HWND hWndForeground = GetForegroundWindow();
-    TabWindow* wnd = HookManager::instance().FindTabWindow(hWndForeground);
-    if (wnd) {
-        if (LRESULT res = wnd->KeySpyProc(nCode, wParam, lParam)) {
-            return res;
+    if (m_windows.size() == 0) {
+        if (!m_hWndFree || hWnd == m_hWndFree) {
+            delete this;
         }
     }
-    return CallNextHookEx(HookManager::instance().m_hKb, nCode, wParam, lParam);
+}
+
+LRESULT HookManager::HookCallWndProcRetProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION) {
+        CWPRETSTRUCT* cwp = (PCWPRETSTRUCT)lParam;
+
+        const auto& windows = HookManager::instance().windows();
+        for (auto it = windows.cbegin(); it != windows.cend(); ++it) {
+            (*it)->HookCallWndProcRetProc(cwp->hwnd, cwp->message, cwp->wParam, cwp->lParam, cwp->lResult);
+        }
+
+        if (cwp->message == WM_DESTROY) {
+            HookManager::instance().OnWindowDestroyed(cwp->hwnd);
+        }
+    }
+
+    // NOTE: HookManager may be destroyed here
+
+    return CallNextHookEx(0, nCode, wParam, lParam);
+}
+
+LRESULT HookManager::HookGetMessageProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION) {
+        HWND hWndForeground = GetForegroundWindow();
+        TabWindow* wnd = HookManager::instance().FindTabWindow(hWndForeground);
+        if (wnd) {
+            MSG* msg = (PMSG)lParam;
+            if (LRESULT res = wnd->HookGetMessageProc(wParam, msg)) {
+                return res;
+            }
+        }
+    }
+
+    return CallNextHookEx(0, nCode, wParam, lParam);
 }
 
 void HookManager::AddTab(HWND window)
@@ -170,8 +197,8 @@ void HookManager::DestroyWindow(TabWindow* tabWindow)
         }
     }
     else {
-        g_hookManager = nullptr;
-        delete this;
+        m_wndLastUsed = NULL;
+        OnWindowDestroyed(NULL);
     }
 }
 

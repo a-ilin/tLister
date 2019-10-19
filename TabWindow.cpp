@@ -78,7 +78,7 @@ TabWindow::~TabWindow()
     SetWindowLongPtr(m_hWndTabCtrl, GWLP_USERDATA, (LONG_PTR)NULL);
 
     DestroyWindow(m_hWndTabCtrl);
-    SetMenu(m_hWnd, NULL);
+    TL_EXPECT(SetMenu(m_hWnd, NULL));
     DestroyWindow(m_hWnd);
 }
 
@@ -108,7 +108,7 @@ void TabWindow::CreateMainWindow(HWND hWndParent)
     GetWindowRect(hWndParent, &r);
     m_hWnd = CreateWindow(_T("TabListerMain"),
         NULL,
-        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | (HookManager::instance().config().ismax ? WS_MAXIMIZE : 0),
+        WS_POPUP | WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | (HookManager::instance().config().ismax ? WS_MAXIMIZE : 0),
         r.left, r.top, r.right - r.left, r.bottom - r.top,
         NULL, NULL, hInst, NULL);
 
@@ -220,17 +220,21 @@ LRESULT TabWindow::OnWindowMessage(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM l
                     (LPARAM)(((NMTCKEYDOWN*)lParam)->flags));
             }
             return 0;
-        case TCN_SELCHANGE:
-            if (m_vecChldrn.size() > 0)
-                ChangeTab();
+        case TCN_SELCHANGE: {
+            LRESULT index = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
+            if (index >= 0 && static_cast<size_t>(index) < m_vecChldrn.size()) {
+                ChangeTab(index);
+            }
+            }
             break;
         }
         break;
     case WM_PARENTNOTIFY:
         switch (LOWORD(wParam)) {
         case WM_DESTROY:
-            if (m_vecChldrn.size() > 0)
+            if (m_vecChldrn.size() > 0) {
                 DelTab((HWND)lParam);
+            }
             if (m_vecChldrn.size() == 0) {
                 HookManager::instance().DestroyWindow(this);
             }
@@ -300,63 +304,59 @@ LRESULT TabWindow::TabControlWindowProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPA
     return DefWindowProc(hWnd, nMsg, wParam, lParam);
 }
 
-LRESULT TabWindow::KeySpyProc(int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT TabWindow::HookGetMessageProc(WPARAM wParam, MSG* msg)
 {
-    if (nCode == HC_ACTION) {
-        if (((PMSG)lParam)->message == WM_KEYDOWN && GetForegroundWindow() == m_hWnd) {
-            const TabConfig& config = HookManager::instance().config();
+    if (msg->message == WM_KEYDOWN && GetForegroundWindow() == m_hWnd) {
+        const TabConfig& config = HookManager::instance().config();
 
-            if (((PMSG)lParam)->wParam == config.nexttab && checkmod(config.nexttabmod)) {
-                LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
-                SendMessage(m_hWndTabCtrl, TCM_SETCURFOCUS, (curtab == m_vecChldrn.size() - 1) ? 0 : curtab + 1, 0);
-                return 1;
-            }
+        if (msg->wParam == config.nexttab && checkmod(config.nexttabmod)) {
+            LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
+            SendMessage(m_hWndTabCtrl, TCM_SETCURFOCUS, (curtab == m_vecChldrn.size() - 1) ? 0 : curtab + 1, 0);
+            return 1;
+        }
 
-            if (((PMSG)lParam)->wParam == config.previoustab && checkmod(config.previoustabmod)) {
-                LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
-                SendMessage(m_hWndTabCtrl, TCM_SETCURFOCUS, (curtab == 0) ? m_vecChldrn.size() - 1 : curtab - 1, 0);
-                return 1;
-            }
+        if (msg->wParam == config.previoustab && checkmod(config.previoustabmod)) {
+            LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
+            SendMessage(m_hWndTabCtrl, TCM_SETCURFOCUS, (curtab == 0) ? m_vecChldrn.size() - 1 : curtab - 1, 0);
+            return 1;
+        }
 
-            if (((PMSG)lParam)->wParam == config.detachtab && checkmod(config.detachtabmod)) {
-                LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
-                Unslave(m_vecChldrn[curtab].hWnd, m_vecChldrn[curtab].hMenu);
-                return 1;
-            }
+        if (msg->wParam == config.detachtab && checkmod(config.detachtabmod)) {
+            LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
+            Unslave(m_vecChldrn[curtab].hWnd, m_vecChldrn[curtab].hMenu);
+            return 1;
+        }
 
-            if (((PMSG)lParam)->wParam == VK_F11) {
-                ShowWindow(m_hWnd, IsZoomed(m_hWnd) ? SW_RESTORE : SW_MAXIMIZE);
-                return 1;
-            }
+        if (msg->wParam == VK_F11) {
+            ShowWindow(m_hWnd, IsZoomed(m_hWnd) ? SW_RESTORE : SW_MAXIMIZE);
+            return 1;
+        }
 
-            if (((PMSG)lParam)->wParam == config.closealltab && checkmod(config.closealltabmod)) {
-                PostMessage(m_hWnd, WM_CLOSE, 0, 0);
-                return 1;
-            }
+        if (msg->wParam == config.closealltab && checkmod(config.closealltabmod)) {
+            PostMessage(m_hWnd, WM_CLOSE, 0, 0);
+            return 1;
         }
     }
 
     return 0;
 }
 
-void TabWindow::SpyProc(int nCode, WPARAM wParam, LPARAM lParam)
+void TabWindow::HookCallWndProcRetProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam, LRESULT lResult)
 {
-    if (nCode == HC_ACTION) {
-        if (((PCWPRETSTRUCT)lParam)->message == WM_SETTEXT /*&&GetForegroundWindow()==TabWindow*/ 
-            && ((PCWPRETSTRUCT)lParam)->hwnd != m_hWnd) {
-            int wn = FindChildWindow(((PCWPRETSTRUCT)lParam)->hwnd);
-            if (wn != -1) {
-                TCHAR title[1000] = _T("");
-                GetWindowText(((PCWPRETSTRUCT)lParam)->hwnd, title, 1000);
-                if (_tcsrchr(title, _T('['))) {
-                    SetWindowText(m_hWnd, title);
-                    TCHAR* name = GetName(title);
-                    TCITEM tie;
-                    tie.mask = TCIF_TEXT;
-                    tie.pszText = name;
-                    SendMessage(m_hWndTabCtrl, TCM_SETITEM, wn, (LPARAM)&tie);
-                    DrawMenuBar(m_hWnd);
-                }
+    if (nMsg == WM_SETTEXT /*&&GetForegroundWindow()==TabWindow*/ 
+        && (hWnd != m_hWnd)) {
+        int wn = FindChildWindow(hWnd);
+        if (wn != -1) {
+            TCHAR title[1000] = _T("");
+            GetWindowText(hWnd, title, 1000);
+            if (_tcsrchr(title, _T('['))) {
+                SetWindowText(m_hWnd, title);
+                TCHAR* name = GetName(title);
+                TCITEM tie;
+                tie.mask = TCIF_TEXT;
+                tie.pszText = name;
+                SendMessage(m_hWndTabCtrl, TCM_SETITEM, wn, (LPARAM)&tie);
+                DrawMenuBar(m_hWnd);
             }
         }
     }
@@ -408,18 +408,16 @@ size_t TabWindow::ChildCount() const
     return m_vecChldrn.size();
 }
 
-void TabWindow::ChangeTab()
+void TabWindow::ChangeTab(size_t index)
 {
-    LRESULT curtab = SendMessage(m_hWndTabCtrl, TCM_GETCURFOCUS, 0, 0);
-
-    SetMenu(m_hWnd, m_vecChldrn[curtab].hMenu);
+    TL_EXPECT(SetMenu(m_hWnd, m_vecChldrn[index].hMenu));
     DrawMenuBar(m_hWnd);
 
     for (size_t i = 0; i < m_vecChldrn.size(); i++) {
-        ShowWindow(m_vecChldrn[i].hWnd, (i == curtab) ? SW_SHOW : SW_HIDE);
+        ShowWindow(m_vecChldrn[i].hWnd, (i == index) ? SW_SHOW : SW_HIDE);
     }
 
-    HWND hWndCurTab = m_vecChldrn[curtab].hWnd;
+    HWND hWndCurTab = m_vecChldrn[index].hWnd;
     Resize(hWndCurTab);
 
     TCHAR title[1000] = _T("");
@@ -445,10 +443,10 @@ void TabWindow::Resize(HWND hWndChld)
     if (m_vecChldrn.size() > 1 || config.AlwaysShowTab) {
         SetRect(&r, 0, 0, r1.right, r1.bottom);
         SendMessage(m_hWndTabCtrl, TCM_ADJUSTRECT, false, (LPARAM)&r);
-        MoveWindow(hWndChld, r.left, r.top, r.right - r.left, r.bottom - r.top, true);
+        TL_EXPECT(MoveWindow(hWndChld, r.left, r.top, r.right - r.left, r.bottom - r.top, true));
     }
     else {
-        MoveWindow(hWndChld, r1.left, r1.top, r1.right - r1.left, r1.bottom - r1.top, true);
+        TL_EXPECT(MoveWindow(hWndChld, r1.left, r1.top, r1.right - r1.left, r1.bottom - r1.top, true));
     }
 }
 
@@ -470,7 +468,7 @@ bool TabWindow::Enslave(HWND window)
         SendMessage(m_hWndTabCtrl, TCM_INSERTITEM, m_vecChldrn.size(), (LPARAM)&tie);
     }
 
-    SetParent((HWND)window, m_hWnd);
+    TL_EXPECT(SetParent((HWND)window, m_hWnd));
     LONG_PTR style = GetWindowLongPtr((HWND)window, GWL_STYLE);
     SetWindowLongPtr((HWND)window, GWL_STYLE, (style&(~(WS_OVERLAPPEDWINDOW|WS_POPUP))) | WS_CHILD);
     SetWindowPos((HWND)window, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED);
@@ -479,7 +477,7 @@ bool TabWindow::Enslave(HWND window)
         SendMessage(m_hWndTabCtrl, TCM_SETCURFOCUS, m_vecChldrn.size() - 1, 0);
     }
 
-    ChangeTab();
+    ChangeTab(m_vecChldrn.size() - 1);
     ShowWindow(m_hWnd, SW_SHOW);
     RedrawWindow(m_hWnd, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
 
@@ -529,8 +527,8 @@ void TabWindow::Unslave(HWND win, HMENU menu)
     ShowWindow(win, SW_HIDE);
     LONG_PTR style = GetWindowLongPtr(win, GWL_STYLE);
     SetWindowLongPtr(win, GWL_STYLE, (style | WS_OVERLAPPEDWINDOW | WS_POPUP)&(~WS_CHILD));
-    SetMenu(win, menu);
-    SetParent(win, NULL);
+    TL_EXPECT(SetMenu(win, menu));
+    TL_EXPECT(SetParent(win, NULL));
     DelTab(win);
     SetWindowPos(win, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
     SwitchToThisWindow(win, true);

@@ -55,14 +55,18 @@ private:
     TabWindow* FindParentTabWindow(HWND hWndChild) const;
     TabWindow* FindTabWindow(HWND hWnd) const;
 
-    static LRESULT CALLBACK SpyProc(int nCode, WPARAM wParam, LPARAM lParam);
-    static LRESULT CALLBACK KeySpyProc(int nCode, WPARAM wParam, LPARAM lParam);
+    // event handlers
+    void OnWindowDestroyed(HWND hWnd);
+
+    // calbacks
+    static LRESULT CALLBACK HookCallWndProcRetProc(int nCode, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK HookGetMessageProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 private:
     TabConfig m_config;
     HFONT m_hTabFont = NULL;
-    HHOOK m_hKb = NULL;
-    HHOOK m_hSpy = NULL;
+    HHOOK m_hkGetMessage = NULL;
+    HHOOK m_hkCallWndProcRet = NULL;
     HWND m_hWndFree = NULL;
     WindowCont m_windows;
     TabWindow* m_wndLastUsed = nullptr;

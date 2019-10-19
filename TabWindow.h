@@ -45,14 +45,14 @@ public:
     size_t ChildCount() const;
 
     // callbacks
-    LRESULT KeySpyProc(int nCode, WPARAM wParam, LPARAM lParam);
-    void SpyProc(int nCode, WPARAM wParam, LPARAM lParam);
+    LRESULT HookGetMessageProc(WPARAM wParam, MSG* msg);
+    void HookCallWndProcRetProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam, LRESULT lResult);
 
 private:
     void CreateMainWindow(HWND hWndParent);
     void CreateTabControlWindow(HFONT hTabFont);
 
-    void ChangeTab();
+    void ChangeTab(size_t index);
     void Resize(HWND hWndChld);
     void DelTab(HWND hWndChld);
     void Unslave(HWND hWnd, HMENU hMenu);

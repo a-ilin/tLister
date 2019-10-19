@@ -20,5 +20,13 @@
 #include <Windows.h>
 #include <tchar.h>
 
+#ifndef NDEBUG
+    #define TL_EXPECT(cond) if (!(cond)) ShowMessageBoxError(__FILE__, __FUNCTION__, __LINE__, (LONG64)GetLastError())
+    void ShowMessageBoxError(char* file, char* location, int line, LONG64 code);
+#else
+#define TL_EXPECT(cond) cond
+#endif // !NDEBUG
+
+
 extern HINSTANCE hInst;
 

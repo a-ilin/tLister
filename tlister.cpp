@@ -19,6 +19,7 @@
 
 #include "tlister.h"
 #include "HookManager.h"
+#include <string>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 HINSTANCE  hInst = NULL;
@@ -49,3 +50,21 @@ extern "C" __declspec(dllexport) HWND __stdcall ListLoad(HWND ParentWin, char* F
 {
 	return ListLoadW(ParentWin, NULL, ShowFlags);
 }
+
+#ifndef NDEBUG
+
+void ShowMessageBoxError(char* file, char* location, int line, LONG64 code)
+{
+    std::string buf = "File: ";
+    buf += file;
+    buf += "\nLocation: ";
+    buf += location;
+    buf += " : ";
+    buf += std::to_string(line);
+    buf += "\nError code: ";
+    buf += std::to_string(code);
+
+    MessageBoxA(NULL, buf.c_str(), "Error occured!", MB_ICONERROR);
+}
+
+#endif
